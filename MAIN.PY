@@ -1,59 +1,92 @@
 import random
-import re
-from telegram import Update
+from telegram import Update, InlineQueryResultArticle, InputTextMessageContent
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters
+    InlineQueryHandler,
+    ContextTypes
 )
+from uuid import uuid4
 
 TOKEN = "7566352440:AAFpJHdWSZyc96xqkZKO6fx1sMnZG-U4kL0"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mensaje = (
-        "¡Hola! Soy un bot de dados. Estos son mis comandos:\n"
-        "/moneda - Lanza una moneda\n"
-        "/3c a /20c - Lanza un dado con ese número de caras\n"
-        "/dado <número> - Lanza un dado con caras personalizadas"
+        "¡Hola! Soy un bot que tira dados y monedas, estos son mis comandos:\n\n"
+        "/moneda - 🪙 Tiras una moneda (cara o cruz)\n"
+        "/dado - 🎲 Tiras un dado de 6 caras\n"
+        "/dado <número> - 🎲 Tiras un dado con el número de caras que quieras\n\n"
+        "También puedes usarme desde cualquier chat escribiendo: @TuNombreDeBot"
     )
     await update.message.reply_text(mensaje)
 
 async def moneda(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    resultado = random.choice(['Cara', 'Cruz'])
-    await update.message.reply_text(f"🪙 La moneda muestra: {resultado}")
-
-async def dado_especifico(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    comando = update.message.text
-    match = re.match(r'^/(\d+)c$', comando)
-    
-    if not match:
-        return
-    
-    try:
-        caras = int(match.group(1))
-    except ValueError:
-        await update.message.reply_text("Formato inválido")
-        return
-    
-    if 3 <= caras <= 20:
-        resultado = random.randint(1, caras)
-        await update.message.reply_text(f"🎲 Dado de {caras} caras: {resultado}")
+    numero = random.randint(1, 8222)
+    if numero == 1:
+        resultado = "😱 ¡La moneda cayó PARADA! como os gusta 🥵..."
     else:
-        await update.message.reply_text("⚠️ Usa un número entre 3 y 20 para este comando")
+        resultado = f"🪙 La moneda cayó: {random.choice(['Cara', 'Cruz'])}"
+    await update.message.reply_text(resultado)
 
-async def dado_personalizado(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def dado(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        caras = int(context.args[0])
-        if caras < 1:
-            raise ValueError
+        caras = int(context.args[0]) if context.args else 6
+        if caras == 1:
+            await update.message.reply_text("🚫 Como que un dado de 1 cara que eres, ¿Pendejo?")
+            return
+        if caras == 2:
+            await update.message.reply_text("🪙 Para eso tira una moneda, Cara Almeja")
+            return
+        if caras == 6 and context.args:
+            await update.message.reply_text("🤣 Por personas como tú el shampoo trae instrucciones")
+            return
     except (IndexError, ValueError):
-        await update.message.reply_text("✏️ Indica un número válido de caras\nEjemplo: /dado 15")
+        await update.message.reply_text("✏️ Usa un número válido.")
         return
-    
+
     resultado = random.randint(1, caras)
     await update.message.reply_text(f"🎲 Dado de {caras} caras: {resultado}")
+
+async def inline(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.inline_query.query.strip().lower()
+    results = []
+
+    if "moneda" in query:
+        numero = random.randint(1, 8222)
+        if numero == 1:
+            resultado = "😱 ¡La moneda cayó PARADA!"
+        else:
+            resultado = f"🪙 La moneda cayó: {random.choice(['Cara', 'Cruz'])}"
+
+        results.append(
+            InlineQueryResultArticle(
+                id=str(uuid4()),
+                title="🪙 Lanzar moneda",
+                input_message_content=InputTextMessageContent(resultado),
+                description="Cara, cruz... o parada 👀",
+            )
+        )
+    else:
+        try:
+            caras = int(query) if query else 6
+            if caras < 1:
+                raise ValueError
+        except ValueError:
+            caras = 6
+
+        resultado = random.randint(1, caras)
+        results.append(
+            InlineQueryResultArticle(
+                id=str(uuid4()),
+                title=f"🎲 Dado de {caras} caras",
+                input_message_content=InputTextMessageContent(
+                    f"🎲 Resultado del dado de ({caras} caras):   {resultado}"
+                ),
+                description="Haz clic para enviar el resultado",
+            )
+        )
+
+    await update.inline_query.answer(results, cache_time=1)
 
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
@@ -61,10 +94,10 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", start))
     app.add_handler(CommandHandler("moneda", moneda))
-    app.add_handler(CommandHandler("dado", dado_personalizado))
-    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'^/\d+c$'), dado_especifico))
+    app.add_handler(CommandHandler("dado", dado))
+    app.add_handler(InlineQueryHandler(inline))
 
-    print("✅ Bot iniciado")
+    print("✅ Bot iniciado con modo inline")
     app.run_polling()
 
 if __name__ == '__main__':
